@@ -7,18 +7,24 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class BackendClient {
     private final String baseUrl;
     private final String wsUrl;
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+    private final HttpClient http = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(3))
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
     private final ObjectMapper mapper = new ObjectMapper();
     private WebSocketClient socket;
+    private EventListener listener;
 
     public BackendClient(String baseUrl) {
         this.baseUrl = baseUrl;
@@ -30,7 +36,11 @@ public class BackendClient {
     }
 
     public List<DeviceState> fetchDevices() throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/devices")).GET().timeout(Duration.ofSeconds(4)).build();
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/devices"))
+                .version(HttpClient.Version.HTTP_1_1)
+                .GET()
+                .timeout(Duration.ofSeconds(4))
+                .build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
         JsonNode devices = mapper.readTree(response.body()).path("devices");
         List<DeviceState> result = new ArrayList<>();
@@ -41,19 +51,26 @@ public class BackendClient {
     }
 
     public void postDeviceAction(String deviceId, String action) {
-        postJson("/api/devices/" + deviceId + "/action", "{\"action\":\"" + action + "\",\"source\":\"frontend\"}");
+        ObjectNode body = mapper.createObjectNode();
+        body.put("action", action);
+        body.put("source", "frontend");
+        body.set("params", mapper.createObjectNode());
+        postJson("/api/devices/" + deviceId + "/action", body);
     }
 
     public void postTextCommand(String text) {
-        String safe = text.replace("\\", "\\\\").replace("\"", "\\\"");
-        postJson("/api/command/text", "{\"text\":\"" + safe + "\",\"source\":\"frontend\"}");
+        ObjectNode body = mapper.createObjectNode();
+        body.put("text", text);
+        body.put("source", "frontend");
+        postJson("/api/command/text", body);
     }
 
     public void postSimple(String path) {
-        postJson(path, "{}");
+        postJson(path, mapper.createObjectNode());
     }
 
     public void connect(EventListener listener) {
+        this.listener = listener;
         socket = new WebSocketClient(URI.create(wsUrl)) {
             @Override
             public void onOpen(ServerHandshake handshake) {
@@ -84,13 +101,37 @@ public class BackendClient {
         }
     }
 
-    private void postJson(String path, String body) {
+    private void postJson(String path, JsonNode body) {
+        String payload;
+        try {
+            payload = mapper.writeValueAsString(body);
+        } catch (Exception ex) {
+            notifyStatus("请求构造失败：" + ex.getMessage());
+            return;
+        }
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + path))
+                .version(HttpClient.Version.HTTP_1_1)
                 .timeout(Duration.ofSeconds(5))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .header("Content-Type", "application/json; charset=utf-8")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                 .build();
-        http.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+        http.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                .thenAccept(response -> {
+                    if (response.statusCode() >= 400) {
+                        notifyStatus("HTTP " + response.statusCode() + " 请求失败：" + path + "，响应：" + response.body());
+                    }
+                })
+                .exceptionally(ex -> {
+                    notifyStatus("HTTP 请求失败：" + ex.getMessage());
+                    return null;
+                });
+    }
+
+    private void notifyStatus(String message) {
+        if (listener != null) {
+            listener.onStatus(message);
+        }
     }
 
     public interface EventListener {

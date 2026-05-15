@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -64,8 +64,19 @@ async def control_device(device_id: str, request: DeviceActionRequest):
 
 
 @app.post("/api/command/text")
-async def text_command(request: TextCommandRequest):
-    return await processor.handle_text(request.text, source=request.source)
+async def text_command(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raw = (await request.body()).decode("utf-8", errors="ignore").strip()
+        payload = {"text": raw, "source": "raw"}
+    if not isinstance(payload, dict):
+        payload = {"text": str(payload), "source": "raw"}
+    command = TextCommandRequest(text=str(payload.get("text", "")).strip(), source=str(payload.get("source", "manual")))
+    if not command.text:
+        await hub.log("warning", "收到空文本指令，已忽略", "command")
+        return {"ok": False, "message": "文本指令不能为空", "devices": []}
+    return await processor.handle_text(command.text, source=command.source)
 
 
 @app.post("/api/listening/start", response_model=ListenerStatus)
