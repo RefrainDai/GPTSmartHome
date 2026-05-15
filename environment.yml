@@ -1,0 +1,26 @@
+name: gpt_smarthome
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - openjdk=17
+  - maven
+  - pip
+  - pip:
+      - fastapi
+      - uvicorn[standard]
+      - pydantic-settings
+      - python-dotenv
+      - numpy
+      - scipy
+      - sounddevice
+      - soundfile
+      - edge-tts
+      - opencv-python
+      - mediapipe
+      - SpeechRecognition
+      - openai
+      - httpx
+      - pyttsx3
+      - pytest

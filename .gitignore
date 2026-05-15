@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environments and secrets
+.env
+.venv/
+venv/
+env/
+
+# Backend runtime data
+backend/data/*.json
+!backend/data/.gitkeep
+assets/tts/*.mp3
+assets/tts/*.wav
+assets/tts/*.m4a
+!assets/tts/.gitkeep
+
+# Java / Maven
+frontend-java/target/
+*.class
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+.DS_Store
+
+# User-provided media can be large; keep README placeholders tracked.
+assets/sounds/*
+!assets/sounds/README.md
+assets/videos/*
+!assets/videos/README.md

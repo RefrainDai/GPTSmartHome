@@ -1,0 +1,1 @@
+"""GPTSmartHome backend package."""

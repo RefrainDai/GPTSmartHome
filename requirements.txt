@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+python-dotenv
+numpy
+scipy
+sounddevice
+soundfile
+edge-tts
+opencv-python
+mediapipe
+SpeechRecognition
+openai
+httpx
+pyttsx3
+pytest

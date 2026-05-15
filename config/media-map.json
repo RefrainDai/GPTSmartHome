@@ -1,0 +1,57 @@
+{
+  "sounds": {
+    "living_room_light": {
+      "on": "light_on.mp3",
+      "off": "light_off.mp3"
+    },
+    "bedroom_light": {
+      "on": "light_on.mp3",
+      "off": "light_off.mp3"
+    },
+    "air_conditioner": {
+      "on": "ac_on.mp3",
+      "off": "ac_off.mp3"
+    },
+    "curtain": {
+      "on": "curtain_open.mp3",
+      "off": "curtain_close.mp3"
+    },
+    "television": {
+      "on": "tv_on.mp3",
+      "off": "tv_off.mp3"
+    },
+    "fan": {
+      "on": "fan_on.mp3",
+      "off": "fan_off.mp3"
+    },
+    "humidifier": {
+      "on": "humidifier_on.mp3",
+      "off": "humidifier_off.mp3"
+    },
+    "door_lock": {
+      "on": "lock_on.mp3",
+      "off": "lock_off.mp3"
+    },
+    "robot_vacuum": {
+      "on": "robot_on.mp3",
+      "off": "robot_off.mp3"
+    },
+    "scene_movie": {
+      "on": "movie_mode.mp3"
+    },
+    "scene_sleep": {
+      "on": "sleep_mode.mp3"
+    },
+    "scene_home": {
+      "on": "welcome_home.mp3"
+    }
+  },
+  "videos": {
+    "television": {
+      "on": "tv_demo.mp4",
+      "scene_movie": "movie_mode.mp4",
+      "loop": true,
+      "volume": 0.35
+    }
+  }
+}
