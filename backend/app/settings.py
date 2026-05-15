@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     gesture_video_preview_enabled: bool = True
     gesture_video_interval_seconds: float = 0.30
     gesture_video_jpeg_quality: int = 55
+    gesture_stable_frames: int = 2
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", env_file_encoding="utf-8")
 

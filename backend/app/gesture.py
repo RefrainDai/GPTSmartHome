@@ -18,6 +18,8 @@ class GestureListener:
         self._last_action_at = 0.0
         self._last_frame_event_at = 0.0
         self._last_video_event_at = 0.0
+        self._candidate_gesture: str | None = None
+        self._candidate_count = 0
 
     def bind_processor(self, processor: CommandProcessor) -> None:
         self.processor = processor
@@ -77,9 +79,11 @@ class GestureListener:
                     landmarks = result.multi_hand_landmarks[0].landmark
                     gesture = self._classify(landmarks)
                     await self._publish_frame(cv2, gesture or "unknown", landmarks, preview_frame)
-                    if gesture:
-                        await self._handle_gesture(gesture)
+                    stable_gesture = self._stabilize(gesture)
+                    if stable_gesture:
+                        await self._handle_gesture(stable_gesture)
                 else:
+                    self._stabilize(None)
                     await self._publish_empty_frame(cv2, preview_frame)
                 elapsed = time.time() - started_at
                 await asyncio.sleep(max(0.0, self.settings.gesture_process_interval_seconds - elapsed))
@@ -158,16 +162,26 @@ class GestureListener:
             return None
         return base64.b64encode(encoded.tobytes()).decode("ascii")
 
+    def _stabilize(self, gesture: str | None) -> str | None:
+        if gesture != self._candidate_gesture:
+            self._candidate_gesture = gesture
+            self._candidate_count = 1 if gesture else 0
+            return None
+        if not gesture:
+            self._candidate_count = 0
+            return None
+        self._candidate_count += 1
+        if self._candidate_count >= max(1, self.settings.gesture_stable_frames):
+            return gesture
+        return None
+
     @staticmethod
     def _clip(value: float) -> float:
         return round(max(0.0, min(1.0, float(value))), 4)
 
     @staticmethod
     def _classify(landmarks) -> str | None:
-        # Finger tips above PIP joints usually means extended fingers in an upright hand.
-        tips = [8, 12, 16, 20]
-        pips = [6, 10, 14, 18]
-        extended = [landmarks[tip].y < landmarks[pip].y for tip, pip in zip(tips, pips)]
+        extended = GestureListener._finger_states(landmarks)
         count = sum(extended)
         if count >= 4:
             return "palm"
@@ -178,3 +192,19 @@ class GestureListener:
         if extended[0] and count == 1:
             return "point_up"
         return None
+
+    @staticmethod
+    def _finger_states(landmarks) -> list[bool]:
+        # Distance-to-wrist is more rotation tolerant than simply comparing y coordinates.
+        wrist = landmarks[0]
+        fingers = [(8, 6), (12, 10), (16, 14), (20, 18)]
+        states: list[bool] = []
+        for tip_idx, pip_idx in fingers:
+            tip_distance = GestureListener._distance(landmarks[tip_idx], wrist)
+            pip_distance = GestureListener._distance(landmarks[pip_idx], wrist)
+            states.append(tip_distance > pip_distance * 1.18)
+        return states
+
+    @staticmethod
+    def _distance(a, b) -> float:
+        return ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (getattr(a, "z", 0.0) - getattr(b, "z", 0.0)) ** 2) ** 0.5
