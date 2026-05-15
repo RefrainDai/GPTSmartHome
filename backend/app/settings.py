@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     gesture_frame_height: int = 240
     gesture_process_interval_seconds: float = 0.12
     gesture_preview_interval_seconds: float = 0.20
+    gesture_use_opencl: bool = True
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", env_file_encoding="utf-8")
 

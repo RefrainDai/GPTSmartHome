@@ -52,6 +52,12 @@ class GestureListener:
             self._running = False
             await self.hub.log("error", "摄像头不可用，手势识别无法启动", "gesture")
             return
+        cv2.setUseOptimized(True)
+        if self.settings.gesture_use_opencl and cv2.ocl.haveOpenCL():
+            cv2.ocl.setUseOpenCL(True)
+            await self.hub.log("info", "OpenCV OpenCL 已启用，用于摄像头帧预处理", "gesture")
+        else:
+            cv2.ocl.setUseOpenCL(False)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.settings.gesture_frame_width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.settings.gesture_frame_height)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -63,9 +69,7 @@ class GestureListener:
                 if not ok:
                     await asyncio.sleep(0.2)
                     continue
-                frame = cv2.resize(frame, (self.settings.gesture_frame_width, self.settings.gesture_frame_height))
-                frame = cv2.flip(frame, 1)
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                rgb = self._prepare_frame(cv2, frame)
                 result = await asyncio.to_thread(hands.process, rgb)
                 if result.multi_hand_landmarks:
                     landmarks = result.multi_hand_landmarks[0].landmark
@@ -80,6 +84,18 @@ class GestureListener:
         finally:
             cap.release()
             hands.close()
+
+    def _prepare_frame(self, cv2, frame):
+        size = (self.settings.gesture_frame_width, self.settings.gesture_frame_height)
+        if self.settings.gesture_use_opencl and cv2.ocl.useOpenCL():
+            gpu_frame = cv2.UMat(frame)
+            gpu_frame = cv2.resize(gpu_frame, size)
+            gpu_frame = cv2.flip(gpu_frame, 1)
+            gpu_frame = cv2.cvtColor(gpu_frame, cv2.COLOR_BGR2RGB)
+            return gpu_frame.get()
+        frame = cv2.resize(frame, size)
+        frame = cv2.flip(frame, 1)
+        return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     async def _handle_gesture(self, gesture: str) -> None:
         now = time.time()

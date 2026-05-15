@@ -199,6 +199,7 @@ GESTURE_FRAME_WIDTH=424
 GESTURE_FRAME_HEIGHT=240
 GESTURE_PROCESS_INTERVAL_SECONDS=0.12
 GESTURE_PREVIEW_INTERVAL_SECONDS=0.20
+GESTURE_USE_OPENCL=true
 ```
 
 含义：
@@ -206,6 +207,7 @@ GESTURE_PREVIEW_INTERVAL_SECONDS=0.20
 - `GESTURE_FRAME_WIDTH` / `GESTURE_FRAME_HEIGHT`：摄像头处理分辨率，越高越吃 CPU。
 - `GESTURE_PROCESS_INTERVAL_SECONDS`：后端手势识别间隔，`0.12` 约等于每秒 8 帧。
 - `GESTURE_PREVIEW_INTERVAL_SECONDS`：前端手势预览刷新间隔，`0.20` 约等于每秒 5 帧。
+- `GESTURE_USE_OPENCL`：启用 OpenCV OpenCL 做摄像头帧缩放、翻转、颜色转换；MediaPipe Python 仍主要使用 CPU。
 
 如果电脑性能较弱，可以改成：
 
@@ -214,7 +216,18 @@ GESTURE_FRAME_WIDTH=320
 GESTURE_FRAME_HEIGHT=180
 GESTURE_PROCESS_INTERVAL_SECONDS=0.18
 GESTURE_PREVIEW_INTERVAL_SECONDS=0.30
+GESTURE_USE_OPENCL=true
 ```
+
+如果 GPU 已被游戏、录屏或浏览器大量占用，OpenCL 不一定更快；这时可以改成 `GESTURE_USE_OPENCL=false`。
+
+前端脚本会自动给 JavaFX 设置 Direct3D 渲染参数：
+
+```text
+-Dprism.order=d3d -Dprism.vsync=true
+```
+
+这会优先使用 Windows 上的 GPU 图形管线渲染界面动画。
 
 如果只是想演示普通设备控制，先不要点击 `启动手势` 和 `开始监听`，手动输入指令会最流畅。
 
