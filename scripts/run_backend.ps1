@@ -1,2 +1,9 @@
 $ErrorActionPreference = "Stop"
-conda run -n gpt_smarthome python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+Push-Location $ProjectRoot
+try {
+    conda run --no-capture-output -n gpt_smarthome python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
+}
+finally {
+    Pop-Location
+}

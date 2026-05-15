@@ -104,6 +104,8 @@ tv_demo.mp4
 
 ## 启动后端
 
+PowerShell 推荐方式：
+
 ```powershell
 conda activate gpt_smarthome
 python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
@@ -113,6 +115,12 @@ python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
 
 ```powershell
 .\scripts\run_backend.ps1
+```
+
+如果你使用的是 CMD，可以运行：
+
+```cmd
+scripts\run_backend.cmd
 ```
 
 健康检查：
@@ -131,6 +139,8 @@ http://127.0.0.1:8000/docs
 
 另开一个终端：
 
+PowerShell 推荐方式：
+
 ```powershell
 conda activate gpt_smarthome
 cd frontend-java
@@ -142,6 +152,14 @@ mvn javafx:run
 ```powershell
 .\scripts\run_frontend.ps1
 ```
+
+如果你使用的是 CMD，可以运行：
+
+```cmd
+scripts\run_frontend.cmd
+```
+
+不要在 `scripts` 目录里直接粘贴 `mvn -f frontend-java/pom.xml ...`，因为这个相对路径是按项目根目录计算的。脚本本身已经会自动定位项目根目录。
 
 ## 演示指令
 
