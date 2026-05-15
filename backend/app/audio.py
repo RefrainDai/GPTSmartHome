@@ -29,6 +29,15 @@ def spectrum(samples: np.ndarray, sample_rate: int, bins: int = 64) -> list[floa
     return [round(float(value / max_value), 4) for value in fft[:bins]]
 
 
+def waveform(samples: np.ndarray, points: int = 96) -> list[float]:
+    if samples.size == 0:
+        return [0.0] * points
+    chunks = np.array_split(samples, points)
+    values = np.array([float(np.mean(chunk)) if chunk.size else 0.0 for chunk in chunks], dtype=np.float32)
+    max_value = float(np.max(np.abs(values))) or 1.0
+    return [round(float(value / max_value), 4) for value in values]
+
+
 def voiceprint_feature(samples: np.ndarray, sample_rate: int) -> list[float]:
     filtered = bandpass_filter(samples, sample_rate)
     frequencies, _, spec = signal.spectrogram(filtered, fs=sample_rate, nperseg=512, noverlap=256)

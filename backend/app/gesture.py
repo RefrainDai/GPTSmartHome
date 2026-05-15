@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import time
 
 from .commands import CommandProcessor
@@ -16,6 +17,7 @@ class GestureListener:
         self._running = False
         self._last_action_at = 0.0
         self._last_frame_event_at = 0.0
+        self._last_video_event_at = 0.0
 
     def bind_processor(self, processor: CommandProcessor) -> None:
         self.processor = processor
@@ -69,16 +71,16 @@ class GestureListener:
                 if not ok:
                     await asyncio.sleep(0.2)
                     continue
-                rgb = self._prepare_frame(cv2, frame)
+                rgb, preview_frame = self._prepare_frame(cv2, frame)
                 result = await asyncio.to_thread(hands.process, rgb)
                 if result.multi_hand_landmarks:
                     landmarks = result.multi_hand_landmarks[0].landmark
                     gesture = self._classify(landmarks)
-                    await self._publish_frame(gesture or "unknown", landmarks)
+                    await self._publish_frame(cv2, gesture or "unknown", landmarks, preview_frame)
                     if gesture:
                         await self._handle_gesture(gesture)
                 else:
-                    await self._publish_empty_frame()
+                    await self._publish_empty_frame(cv2, preview_frame)
                 elapsed = time.time() - started_at
                 await asyncio.sleep(max(0.0, self.settings.gesture_process_interval_seconds - elapsed))
         finally:
@@ -91,11 +93,12 @@ class GestureListener:
             gpu_frame = cv2.UMat(frame)
             gpu_frame = cv2.resize(gpu_frame, size)
             gpu_frame = cv2.flip(gpu_frame, 1)
-            gpu_frame = cv2.cvtColor(gpu_frame, cv2.COLOR_BGR2RGB)
-            return gpu_frame.get()
+            preview = gpu_frame.get()
+            rgb = cv2.cvtColor(preview, cv2.COLOR_BGR2RGB)
+            return rgb, preview
         frame = cv2.resize(frame, size)
         frame = cv2.flip(frame, 1)
-        return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), frame
 
     async def _handle_gesture(self, gesture: str) -> None:
         now = time.time()
@@ -113,7 +116,7 @@ class GestureListener:
             await self.hub.publish("gesture", {"name": gesture})
             await self.processor.execute_intent(intent, source="gesture")
 
-    async def _publish_frame(self, gesture: str, landmarks) -> None:
+    async def _publish_frame(self, cv2, gesture: str, landmarks, preview_frame) -> None:
         now = time.time()
         if now - self._last_frame_event_at < self.settings.gesture_preview_interval_seconds:
             return
@@ -128,14 +131,32 @@ class GestureListener:
             "width": self._clip(max(xs) - min(xs) + padding * 2),
             "height": self._clip(max(ys) - min(ys) + padding * 2),
         }
-        await self.hub.publish("gesture_frame", {"name": gesture, "bbox": bbox, "landmarks": points})
+        await self.hub.publish(
+            "gesture_frame",
+            {"name": gesture, "bbox": bbox, "landmarks": points, "image": self._encode_preview(cv2, preview_frame, now)},
+        )
 
-    async def _publish_empty_frame(self) -> None:
+    async def _publish_empty_frame(self, cv2, preview_frame) -> None:
         now = time.time()
-        if now - self._last_frame_event_at < 0.5:
+        if now - self._last_frame_event_at < self.settings.gesture_video_interval_seconds:
             return
         self._last_frame_event_at = now
-        await self.hub.publish("gesture_frame", {"name": "none", "bbox": None, "landmarks": []})
+        await self.hub.publish(
+            "gesture_frame",
+            {"name": "none", "bbox": None, "landmarks": [], "image": self._encode_preview(cv2, preview_frame, now)},
+        )
+
+    def _encode_preview(self, cv2, preview_frame, now: float) -> str | None:
+        if not self.settings.gesture_video_preview_enabled:
+            return None
+        if now - self._last_video_event_at < self.settings.gesture_video_interval_seconds:
+            return None
+        self._last_video_event_at = now
+        quality = int(max(20, min(95, self.settings.gesture_video_jpeg_quality)))
+        ok, encoded = cv2.imencode(".jpg", preview_frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+        if not ok:
+            return None
+        return base64.b64encode(encoded.tobytes()).decode("ascii")
 
     @staticmethod
     def _clip(value: float) -> float:

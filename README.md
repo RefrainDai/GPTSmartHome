@@ -6,6 +6,8 @@
 
 - JavaFX 智能家居可视化界面：客厅、卧室、玄关、设备卡片、状态动画。
 - 手势识别预览：实时显示当前手势、识别区域框和手指关键点连线。
+- 摄像头画面预览：启动手势后显示笔记本摄像头实时画面，并在画面上叠加识别框和手部骨架。
+- 语音输入可视化：启动监听后显示麦克风状态、实时音量、语音波形和频谱图。
 - FastAPI 后端：统一设备状态中心、REST API、WebSocket 实时推送。
 - 语音模块：麦克风录音、带通滤波、FFT 频谱、中文语音识别、异常容错。
 - 手势模块：摄像头 + MediaPipe，支持手掌、拳头、比耶、举手手势。
@@ -180,6 +182,7 @@ scripts\run_frontend.cmd
 
 启动手势后，JavaFX 右侧会显示“手势识别预览”：
 
+- 摄像头实时画面会显示在预览框中。
 - 当前手势名称会实时刷新。
 - 虚线框表示摄像头识别区域。
 - 青色实线框表示当前检测到的手部范围。
@@ -200,6 +203,9 @@ GESTURE_FRAME_HEIGHT=240
 GESTURE_PROCESS_INTERVAL_SECONDS=0.12
 GESTURE_PREVIEW_INTERVAL_SECONDS=0.20
 GESTURE_USE_OPENCL=true
+GESTURE_VIDEO_PREVIEW_ENABLED=true
+GESTURE_VIDEO_INTERVAL_SECONDS=0.30
+GESTURE_VIDEO_JPEG_QUALITY=55
 ```
 
 含义：
@@ -208,6 +214,9 @@ GESTURE_USE_OPENCL=true
 - `GESTURE_PROCESS_INTERVAL_SECONDS`：后端手势识别间隔，`0.12` 约等于每秒 8 帧。
 - `GESTURE_PREVIEW_INTERVAL_SECONDS`：前端手势预览刷新间隔，`0.20` 约等于每秒 5 帧。
 - `GESTURE_USE_OPENCL`：启用 OpenCV OpenCL 做摄像头帧缩放、翻转、颜色转换；MediaPipe Python 仍主要使用 CPU。
+- `GESTURE_VIDEO_PREVIEW_ENABLED`：是否向前端发送摄像头预览画面。
+- `GESTURE_VIDEO_INTERVAL_SECONDS`：摄像头画面刷新间隔，越小越流畅但更占网络和 CPU。
+- `GESTURE_VIDEO_JPEG_QUALITY`：摄像头预览 JPEG 质量，越高越清晰但更占带宽。
 
 如果电脑性能较弱，可以改成：
 
@@ -217,6 +226,9 @@ GESTURE_FRAME_HEIGHT=180
 GESTURE_PROCESS_INTERVAL_SECONDS=0.18
 GESTURE_PREVIEW_INTERVAL_SECONDS=0.30
 GESTURE_USE_OPENCL=true
+GESTURE_VIDEO_PREVIEW_ENABLED=true
+GESTURE_VIDEO_INTERVAL_SECONDS=0.35
+GESTURE_VIDEO_JPEG_QUALITY=50
 ```
 
 如果 GPU 已被游戏、录屏或浏览器大量占用，OpenCL 不一定更快；这时可以改成 `GESTURE_USE_OPENCL=false`。

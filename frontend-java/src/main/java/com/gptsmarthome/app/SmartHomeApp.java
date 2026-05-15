@@ -2,10 +2,12 @@ package com.gptsmarthome.app;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,8 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.effect.DropShadow;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -49,6 +53,10 @@ import javafx.util.Duration;
 
 public class SmartHomeApp extends Application {
     private static final String BACKEND_URL = System.getProperty("backend.url", "http://127.0.0.1:8000");
+    private static final double INPUT_PREVIEW_WIDTH = 340;
+    private static final double GESTURE_PREVIEW_HEIGHT = 190;
+    private static final double WAVEFORM_HEIGHT = 72;
+    private static final double VOLUME_BAR_WIDTH = 230;
     private static final int[][] HAND_CONNECTIONS = {
             {0, 1}, {1, 2}, {2, 3}, {3, 4},
             {0, 5}, {5, 6}, {6, 7}, {7, 8},
@@ -68,8 +76,13 @@ public class SmartHomeApp extends Application {
     private TextArea logArea;
     private Label assistantLabel;
     private Label connectionLabel;
+    private Label voiceStatusLabel;
+    private Label voiceVolumeLabel;
+    private Rectangle voiceVolumeFill;
+    private Pane waveformPane;
     private Label gestureStatusLabel;
     private Pane gestureCanvas;
+    private ImageView gestureImageView;
     private GridPane deviceGrid;
     private Pane housePane;
     private XYChart.Series<Number, Number> spectrumSeries;
@@ -189,7 +202,7 @@ public class SmartHomeApp extends Application {
         assistantLabel.setStyle("-fx-text-fill: #dff6ff; -fx-font-size: 15px; -fx-font-weight: 700;");
 
         VBox gesturePanel = buildGesturePanel();
-        LineChart<Number, Number> chart = buildSpectrumChart();
+        VBox voicePanel = buildVoicePanel();
         logArea = new TextArea();
         logArea.getStyleClass().add("log-area");
         logArea.setEditable(false);
@@ -203,12 +216,42 @@ public class SmartHomeApp extends Application {
                 gestureControls,
                 scenes,
                 assistantLabel,
+                voicePanel,
                 gesturePanel,
-                chart,
                 logArea);
         panel.setPrefWidth(400);
         BorderPane.setMargin(panel, new Insets(0, 0, 0, 18));
         return panel;
+    }
+
+    private VBox buildVoicePanel() {
+        Label title = new Label("语音输入可视化");
+        title.setStyle("-fx-text-fill: #dff6ff; -fx-font-size: 14px; -fx-font-weight: 800;");
+        voiceStatusLabel = new Label("麦克风：未启动");
+        voiceStatusLabel.setStyle("-fx-text-fill: #93c5fd; -fx-font-size: 13px; -fx-font-weight: 700;");
+        voiceVolumeLabel = new Label("音量 0%");
+        voiceVolumeLabel.setStyle("-fx-text-fill: #a7f3d0; -fx-font-size: 12px;");
+
+        Rectangle volumeBack = new Rectangle(VOLUME_BAR_WIDTH, 10, Color.web("#0f172a"));
+        volumeBack.setArcWidth(10);
+        volumeBack.setArcHeight(10);
+        volumeBack.setStroke(Color.web("#334155"));
+        voiceVolumeFill = new Rectangle(0, 10, Color.web("#22c55e"));
+        voiceVolumeFill.setArcWidth(10);
+        voiceVolumeFill.setArcHeight(10);
+        StackPane volumeBar = new StackPane(volumeBack, voiceVolumeFill);
+        volumeBar.setAlignment(Pos.CENTER_LEFT);
+        HBox volumeRow = new HBox(10, voiceVolumeLabel, volumeBar);
+        volumeRow.setAlignment(Pos.CENTER_LEFT);
+
+        waveformPane = new Pane();
+        waveformPane.setPrefSize(INPUT_PREVIEW_WIDTH, WAVEFORM_HEIGHT);
+        waveformPane.setMinHeight(WAVEFORM_HEIGHT);
+        waveformPane.setStyle("-fx-background-color: rgba(2, 6, 23, 0.58); -fx-background-radius: 14px; -fx-border-color: rgba(125, 211, 252, 0.22); -fx-border-radius: 14px;");
+        drawWaveformPlaceholder();
+
+        LineChart<Number, Number> chart = buildSpectrumChart();
+        return new VBox(8, title, voiceStatusLabel, volumeRow, waveformPane, chart);
     }
 
     private VBox buildGesturePanel() {
@@ -216,12 +259,21 @@ public class SmartHomeApp extends Application {
         title.setStyle("-fx-text-fill: #dff6ff; -fx-font-size: 14px; -fx-font-weight: 800;");
         gestureStatusLabel = new Label("当前手势：未启动");
         gestureStatusLabel.setStyle("-fx-text-fill: #86efac; -fx-font-size: 13px; -fx-font-weight: 700;");
+        StackPane preview = new StackPane();
+        preview.setPrefSize(INPUT_PREVIEW_WIDTH, GESTURE_PREVIEW_HEIGHT);
+        preview.setMinHeight(GESTURE_PREVIEW_HEIGHT);
+        preview.setStyle("-fx-background-color: rgba(2, 6, 23, 0.72); -fx-background-radius: 16px; -fx-border-color: rgba(34, 211, 238, 0.25); -fx-border-radius: 16px;");
+        gestureImageView = new ImageView();
+        gestureImageView.setFitWidth(INPUT_PREVIEW_WIDTH);
+        gestureImageView.setFitHeight(GESTURE_PREVIEW_HEIGHT);
+        gestureImageView.setPreserveRatio(false);
         gestureCanvas = new Pane();
-        gestureCanvas.setPrefHeight(180);
-        gestureCanvas.setMinHeight(180);
-        gestureCanvas.setStyle("-fx-background-color: rgba(2, 6, 23, 0.64); -fx-background-radius: 16px; -fx-border-color: rgba(34, 211, 238, 0.25); -fx-border-radius: 16px;");
+        gestureCanvas.setPrefSize(INPUT_PREVIEW_WIDTH, GESTURE_PREVIEW_HEIGHT);
+        gestureCanvas.setMinHeight(GESTURE_PREVIEW_HEIGHT);
+        gestureCanvas.setMouseTransparent(true);
+        preview.getChildren().addAll(gestureImageView, gestureCanvas);
         drawGesturePlaceholder("等待摄像头手势数据");
-        return new VBox(8, title, gestureStatusLabel, gestureCanvas);
+        return new VBox(8, title, gestureStatusLabel, preview);
     }
 
     private Pane buildHousePane() {
@@ -480,6 +532,8 @@ public class SmartHomeApp extends Application {
                     assistantLabel.setText("AI 管家：" + text);
                     soundManager.playAssistantVoice(payload.path("audio_url").asText(null), backend.baseUrl(), this::appendLog);
                 }
+                case "voice_status" -> updateVoiceStatus(payload);
+                case "voice_frame" -> updateVoiceFrame(payload);
                 case "spectrum" -> updateSpectrum(payload.path("values"));
                 case "gesture_frame" -> updateGestureFrame(payload);
                 case "voice_text" -> appendLog("识别文本：" + payload.path("text").asText());
@@ -496,14 +550,15 @@ public class SmartHomeApp extends Application {
     private void updateGestureFrame(JsonNode payload) {
         String name = payload.path("name").asText("none");
         gestureStatusLabel.setText("当前手势：" + displayGestureName(name));
+        updateGestureImage(payload.path("image").asText(null));
         JsonNode landmarks = payload.path("landmarks");
         if (!landmarks.isArray() || landmarks.isEmpty()) {
             drawGesturePlaceholder("未检测到手部，请把手放入识别区域");
             return;
         }
 
-        double width = gestureCanvas.getWidth() > 20 ? gestureCanvas.getWidth() : 340;
-        double height = gestureCanvas.getHeight() > 20 ? gestureCanvas.getHeight() : 180;
+        double width = gestureCanvas.getWidth() > 20 ? gestureCanvas.getWidth() : INPUT_PREVIEW_WIDTH;
+        double height = gestureCanvas.getHeight() > 20 ? gestureCanvas.getHeight() : GESTURE_PREVIEW_HEIGHT;
         gestureCanvas.getChildren().clear();
 
         Rectangle guide = new Rectangle(10, 10, width - 20, height - 20);
@@ -558,8 +613,8 @@ public class SmartHomeApp extends Application {
         if (gestureCanvas == null) {
             return;
         }
-        double width = gestureCanvas.getWidth() > 20 ? gestureCanvas.getWidth() : 340;
-        double height = gestureCanvas.getHeight() > 20 ? gestureCanvas.getHeight() : 180;
+        double width = gestureCanvas.getWidth() > 20 ? gestureCanvas.getWidth() : INPUT_PREVIEW_WIDTH;
+        double height = gestureCanvas.getHeight() > 20 ? gestureCanvas.getHeight() : GESTURE_PREVIEW_HEIGHT;
         gestureCanvas.getChildren().clear();
         Rectangle guide = new Rectangle(10, 10, width - 20, height - 20);
         guide.setArcWidth(18);
@@ -572,6 +627,85 @@ public class SmartHomeApp extends Application {
         label.setLayoutX(34);
         label.setLayoutY(height / 2 - 10);
         gestureCanvas.getChildren().addAll(guide, label);
+    }
+
+    private void updateGestureImage(String encodedImage) {
+        if (encodedImage == null || encodedImage.isBlank() || gestureImageView == null) {
+            return;
+        }
+        try {
+            byte[] bytes = Base64.getDecoder().decode(encodedImage);
+            gestureImageView.setImage(new Image(new ByteArrayInputStream(bytes)));
+        } catch (Exception ex) {
+            appendLog("摄像头画面解析失败：" + ex.getMessage());
+        }
+    }
+
+    private void updateVoiceStatus(JsonNode payload) {
+        boolean running = payload.path("running").asBoolean(false);
+        String state = payload.path("state").asText("stopped");
+        if (!running) {
+            voiceStatusLabel.setText("麦克风：已停止");
+            return;
+        }
+        voiceStatusLabel.setText("麦克风：" + switch (state) {
+            case "recognizing" -> "正在识别语音";
+            case "listening" -> "正在监听输入";
+            default -> "运行中";
+        });
+    }
+
+    private void updateVoiceFrame(JsonNode payload) {
+        double volume = payload.path("volume").asDouble(0);
+        double threshold = payload.path("threshold").asDouble(0.015);
+        double normalized = Math.min(1.0, volume / Math.max(threshold * 4.0, 0.001));
+        voiceVolumeFill.setWidth(VOLUME_BAR_WIDTH * normalized);
+        voiceVolumeFill.setFill(normalized > 0.75 ? Color.web("#f97316") : Color.web("#22c55e"));
+        voiceVolumeLabel.setText("音量 " + Math.round(normalized * 100) + "%");
+        updateWaveform(payload.path("waveform"));
+        updateSpectrum(payload.path("spectrum"));
+    }
+
+    private void updateWaveform(JsonNode values) {
+        if (waveformPane == null || !values.isArray() || values.isEmpty()) {
+            return;
+        }
+        double width = waveformPane.getWidth() > 20 ? waveformPane.getWidth() : INPUT_PREVIEW_WIDTH;
+        double height = waveformPane.getHeight() > 20 ? waveformPane.getHeight() : WAVEFORM_HEIGHT;
+        waveformPane.getChildren().clear();
+        Line center = new Line(8, height / 2, width - 8, height / 2);
+        center.setStroke(Color.web("#334155"));
+        center.setStrokeWidth(1);
+        waveformPane.getChildren().add(center);
+
+        int count = values.size();
+        double previousX = 8;
+        double previousY = height / 2;
+        for (int i = 0; i < count; i++) {
+            double value = Math.max(-1.0, Math.min(1.0, values.get(i).asDouble()));
+            double x = 8 + (width - 16) * i / Math.max(1, count - 1);
+            double y = height / 2 - value * (height * 0.38);
+            if (i > 0) {
+                Line line = new Line(previousX, previousY, x, y);
+                line.setStroke(Color.web("#38bdf8"));
+                line.setStrokeWidth(1.7);
+                waveformPane.getChildren().add(line);
+            }
+            previousX = x;
+            previousY = y;
+        }
+    }
+
+    private void drawWaveformPlaceholder() {
+        if (waveformPane == null) {
+            return;
+        }
+        waveformPane.getChildren().clear();
+        Label label = new Label("等待麦克风输入波形");
+        label.setTextFill(Color.web("#94a3b8"));
+        label.setLayoutX(34);
+        label.setLayoutY(WAVEFORM_HEIGHT / 2 - 10);
+        waveformPane.getChildren().add(label);
     }
 
     private String displayGestureName(String name) {

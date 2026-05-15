@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     voice_sample_rate: int = 16000
     voice_chunk_seconds: float = 2.8
     voice_rms_threshold: float = 0.015
+    voice_visual_interval_seconds: float = 0.16
+    voice_spectrum_bins: int = 64
+    voice_waveform_points: int = 96
 
     llm_enabled: bool = False
     llm_api_key: str = ""
@@ -42,6 +45,9 @@ class Settings(BaseSettings):
     gesture_process_interval_seconds: float = 0.12
     gesture_preview_interval_seconds: float = 0.20
     gesture_use_opencl: bool = True
+    gesture_video_preview_enabled: bool = True
+    gesture_video_interval_seconds: float = 0.30
+    gesture_video_jpeg_quality: int = 55
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", env_file_encoding="utf-8")
 
