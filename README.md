@@ -190,6 +190,34 @@ scripts\run_frontend.cmd
 - 比耶：切换电视。
 - 举手/单指：切换窗帘。
 
+## 卡顿排查
+
+如果启动语音或手势后明显卡顿，优先检查这些配置：
+
+```env
+GESTURE_FRAME_WIDTH=424
+GESTURE_FRAME_HEIGHT=240
+GESTURE_PROCESS_INTERVAL_SECONDS=0.12
+GESTURE_PREVIEW_INTERVAL_SECONDS=0.20
+```
+
+含义：
+
+- `GESTURE_FRAME_WIDTH` / `GESTURE_FRAME_HEIGHT`：摄像头处理分辨率，越高越吃 CPU。
+- `GESTURE_PROCESS_INTERVAL_SECONDS`：后端手势识别间隔，`0.12` 约等于每秒 8 帧。
+- `GESTURE_PREVIEW_INTERVAL_SECONDS`：前端手势预览刷新间隔，`0.20` 约等于每秒 5 帧。
+
+如果电脑性能较弱，可以改成：
+
+```env
+GESTURE_FRAME_WIDTH=320
+GESTURE_FRAME_HEIGHT=180
+GESTURE_PROCESS_INTERVAL_SECONDS=0.18
+GESTURE_PREVIEW_INTERVAL_SECONDS=0.30
+```
+
+如果只是想演示普通设备控制，先不要点击 `启动手势` 和 `开始监听`，手动输入指令会最流畅。
+
 ## 目录结构
 
 ```text

@@ -37,6 +37,10 @@ class Settings(BaseSettings):
 
     gesture_camera_index: int = 0
     gesture_cooldown_seconds: float = 2.0
+    gesture_frame_width: int = 424
+    gesture_frame_height: int = 240
+    gesture_process_interval_seconds: float = 0.12
+    gesture_preview_interval_seconds: float = 0.20
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", env_file_encoding="utf-8")
 

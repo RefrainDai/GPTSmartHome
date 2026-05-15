@@ -49,7 +49,6 @@ class CommandProcessor:
             return CommandResult(ok=False, message=reply, intent=intent, audio_url=audio_url)
 
         reply = intent.reply or self._default_reply(intent, changed)
-        audio_url = await self.tts.synthesize(reply)
         for device in changed:
             await self.hub.publish(
                 "device_updated",
@@ -60,8 +59,9 @@ class CommandProcessor:
                     "text": original_text,
                 },
             )
-        await self.hub.publish("ai_reply", {"text": reply, "audio_url": audio_url})
         await self.hub.log("info", reply, "assistant")
+        audio_url = await self.tts.synthesize(reply)
+        await self.hub.publish("ai_reply", {"text": reply, "audio_url": audio_url})
         return CommandResult(ok=True, message=reply, intent=intent, devices=changed, audio_url=audio_url)
 
     def _parse_local(self, text: str) -> Intent | None:

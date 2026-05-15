@@ -52,15 +52,21 @@ class GestureListener:
             self._running = False
             await self.hub.log("error", "摄像头不可用，手势识别无法启动", "gesture")
             return
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.settings.gesture_frame_width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.settings.gesture_frame_height)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         hands = mp.solutions.hands.Hands(max_num_hands=1, min_detection_confidence=0.65, min_tracking_confidence=0.55)
         try:
             while self._running:
+                started_at = time.time()
                 ok, frame = await asyncio.to_thread(cap.read)
                 if not ok:
                     await asyncio.sleep(0.2)
                     continue
+                frame = cv2.resize(frame, (self.settings.gesture_frame_width, self.settings.gesture_frame_height))
+                frame = cv2.flip(frame, 1)
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                result = hands.process(rgb)
+                result = await asyncio.to_thread(hands.process, rgb)
                 if result.multi_hand_landmarks:
                     landmarks = result.multi_hand_landmarks[0].landmark
                     gesture = self._classify(landmarks)
@@ -69,7 +75,8 @@ class GestureListener:
                         await self._handle_gesture(gesture)
                 else:
                     await self._publish_empty_frame()
-                await asyncio.sleep(0.03)
+                elapsed = time.time() - started_at
+                await asyncio.sleep(max(0.0, self.settings.gesture_process_interval_seconds - elapsed))
         finally:
             cap.release()
             hands.close()
@@ -92,7 +99,7 @@ class GestureListener:
 
     async def _publish_frame(self, gesture: str, landmarks) -> None:
         now = time.time()
-        if now - self._last_frame_event_at < 0.1:
+        if now - self._last_frame_event_at < self.settings.gesture_preview_interval_seconds:
             return
         self._last_frame_event_at = now
         points = [{"x": self._clip(point.x), "y": self._clip(point.y)} for point in landmarks]
