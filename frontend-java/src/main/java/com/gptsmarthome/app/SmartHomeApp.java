@@ -49,6 +49,14 @@ import javafx.util.Duration;
 
 public class SmartHomeApp extends Application {
     private static final String BACKEND_URL = System.getProperty("backend.url", "http://127.0.0.1:8000");
+    private static final int[][] HAND_CONNECTIONS = {
+            {0, 1}, {1, 2}, {2, 3}, {3, 4},
+            {0, 5}, {5, 6}, {6, 7}, {7, 8},
+            {5, 9}, {9, 10}, {10, 11}, {11, 12},
+            {9, 13}, {13, 14}, {14, 15}, {15, 16},
+            {13, 17}, {17, 18}, {18, 19}, {19, 20},
+            {0, 17}
+    };
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final Map<String, DeviceState> devices = new HashMap<>();
@@ -60,6 +68,8 @@ public class SmartHomeApp extends Application {
     private TextArea logArea;
     private Label assistantLabel;
     private Label connectionLabel;
+    private Label gestureStatusLabel;
+    private Pane gestureCanvas;
     private GridPane deviceGrid;
     private Pane housePane;
     private XYChart.Series<Number, Number> spectrumSeries;
@@ -178,6 +188,7 @@ public class SmartHomeApp extends Application {
         assistantLabel.setWrapText(true);
         assistantLabel.setStyle("-fx-text-fill: #dff6ff; -fx-font-size: 15px; -fx-font-weight: 700;");
 
+        VBox gesturePanel = buildGesturePanel();
         LineChart<Number, Number> chart = buildSpectrumChart();
         logArea = new TextArea();
         logArea.getStyleClass().add("log-area");
@@ -192,11 +203,25 @@ public class SmartHomeApp extends Application {
                 gestureControls,
                 scenes,
                 assistantLabel,
+                gesturePanel,
                 chart,
                 logArea);
         panel.setPrefWidth(400);
         BorderPane.setMargin(panel, new Insets(0, 0, 0, 18));
         return panel;
+    }
+
+    private VBox buildGesturePanel() {
+        Label title = new Label("手势识别预览");
+        title.setStyle("-fx-text-fill: #dff6ff; -fx-font-size: 14px; -fx-font-weight: 800;");
+        gestureStatusLabel = new Label("当前手势：未启动");
+        gestureStatusLabel.setStyle("-fx-text-fill: #86efac; -fx-font-size: 13px; -fx-font-weight: 700;");
+        gestureCanvas = new Pane();
+        gestureCanvas.setPrefHeight(180);
+        gestureCanvas.setMinHeight(180);
+        gestureCanvas.setStyle("-fx-background-color: rgba(2, 6, 23, 0.64); -fx-background-radius: 16px; -fx-border-color: rgba(34, 211, 238, 0.25); -fx-border-radius: 16px;");
+        drawGesturePlaceholder("等待摄像头手势数据");
+        return new VBox(8, title, gestureStatusLabel, gestureCanvas);
     }
 
     private Pane buildHousePane() {
@@ -456,6 +481,7 @@ public class SmartHomeApp extends Application {
                     soundManager.playAssistantVoice(payload.path("audio_url").asText(null), backend.baseUrl(), this::appendLog);
                 }
                 case "spectrum" -> updateSpectrum(payload.path("values"));
+                case "gesture_frame" -> updateGestureFrame(payload);
                 case "voice_text" -> appendLog("识别文本：" + payload.path("text").asText());
                 case "gesture" -> appendLog("识别手势：" + payload.path("name").asText());
                 case "log" -> appendLog("[" + payload.path("source").asText() + "] " + payload.path("message").asText());
@@ -465,6 +491,99 @@ public class SmartHomeApp extends Application {
         } catch (Exception ex) {
             appendLog("事件解析失败：" + ex.getMessage());
         }
+    }
+
+    private void updateGestureFrame(JsonNode payload) {
+        String name = payload.path("name").asText("none");
+        gestureStatusLabel.setText("当前手势：" + displayGestureName(name));
+        JsonNode landmarks = payload.path("landmarks");
+        if (!landmarks.isArray() || landmarks.isEmpty()) {
+            drawGesturePlaceholder("未检测到手部，请把手放入识别区域");
+            return;
+        }
+
+        double width = gestureCanvas.getWidth() > 20 ? gestureCanvas.getWidth() : 340;
+        double height = gestureCanvas.getHeight() > 20 ? gestureCanvas.getHeight() : 180;
+        gestureCanvas.getChildren().clear();
+
+        Rectangle guide = new Rectangle(10, 10, width - 20, height - 20);
+        guide.setArcWidth(18);
+        guide.setArcHeight(18);
+        guide.setFill(Color.TRANSPARENT);
+        guide.setStroke(Color.web("#334155"));
+        guide.getStrokeDashArray().addAll(8.0, 7.0);
+        gestureCanvas.getChildren().add(guide);
+
+        JsonNode bbox = payload.path("bbox");
+        if (bbox.isObject()) {
+            Rectangle box = new Rectangle(
+                    bbox.path("x").asDouble() * width,
+                    bbox.path("y").asDouble() * height,
+                    Math.max(18, bbox.path("width").asDouble() * width),
+                    Math.max(18, bbox.path("height").asDouble() * height));
+            box.setArcWidth(14);
+            box.setArcHeight(14);
+            box.setFill(Color.web("#22d3ee", 0.08));
+            box.setStroke(Color.web("#22d3ee"));
+            box.setStrokeWidth(2.4);
+            gestureCanvas.getChildren().add(box);
+        }
+
+        for (int[] connection : HAND_CONNECTIONS) {
+            if (connection[0] >= landmarks.size() || connection[1] >= landmarks.size()) {
+                continue;
+            }
+            JsonNode a = landmarks.get(connection[0]);
+            JsonNode b = landmarks.get(connection[1]);
+            Line line = new Line(
+                    a.path("x").asDouble() * width,
+                    a.path("y").asDouble() * height,
+                    b.path("x").asDouble() * width,
+                    b.path("y").asDouble() * height);
+            line.setStroke(Color.web("#67e8f9"));
+            line.setStrokeWidth(2.2);
+            gestureCanvas.getChildren().add(line);
+        }
+
+        for (JsonNode point : landmarks) {
+            Circle dot = new Circle(point.path("x").asDouble() * width, point.path("y").asDouble() * height, 3.4);
+            dot.setFill(Color.web("#a7f3d0"));
+            dot.setStroke(Color.web("#ecfeff"));
+            dot.setStrokeWidth(0.8);
+            gestureCanvas.getChildren().add(dot);
+        }
+    }
+
+    private void drawGesturePlaceholder(String message) {
+        if (gestureCanvas == null) {
+            return;
+        }
+        double width = gestureCanvas.getWidth() > 20 ? gestureCanvas.getWidth() : 340;
+        double height = gestureCanvas.getHeight() > 20 ? gestureCanvas.getHeight() : 180;
+        gestureCanvas.getChildren().clear();
+        Rectangle guide = new Rectangle(10, 10, width - 20, height - 20);
+        guide.setArcWidth(18);
+        guide.setArcHeight(18);
+        guide.setFill(Color.TRANSPARENT);
+        guide.setStroke(Color.web("#334155"));
+        guide.getStrokeDashArray().addAll(8.0, 7.0);
+        Label label = new Label(message);
+        label.setTextFill(Color.web("#94a3b8"));
+        label.setLayoutX(34);
+        label.setLayoutY(height / 2 - 10);
+        gestureCanvas.getChildren().addAll(guide, label);
+    }
+
+    private String displayGestureName(String name) {
+        return switch (name) {
+            case "palm" -> "手掌（打开客厅灯）";
+            case "fist" -> "拳头（关闭客厅灯）";
+            case "victory" -> "比耶（切换电视）";
+            case "point_up" -> "举手 / 单指（切换窗帘）";
+            case "unknown" -> "检测中";
+            case "none" -> "未检测到";
+            default -> name;
+        };
     }
 
     private String actionForSound(DeviceState device, String action) {

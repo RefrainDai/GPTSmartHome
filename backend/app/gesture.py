@@ -15,6 +15,7 @@ class GestureListener:
         self._task: asyncio.Task | None = None
         self._running = False
         self._last_action_at = 0.0
+        self._last_frame_event_at = 0.0
 
     def bind_processor(self, processor: CommandProcessor) -> None:
         self.processor = processor
@@ -61,9 +62,13 @@ class GestureListener:
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 result = hands.process(rgb)
                 if result.multi_hand_landmarks:
-                    gesture = self._classify(result.multi_hand_landmarks[0].landmark)
+                    landmarks = result.multi_hand_landmarks[0].landmark
+                    gesture = self._classify(landmarks)
+                    await self._publish_frame(gesture or "unknown", landmarks)
                     if gesture:
                         await self._handle_gesture(gesture)
+                else:
+                    await self._publish_empty_frame()
                 await asyncio.sleep(0.03)
         finally:
             cap.release()
@@ -84,6 +89,34 @@ class GestureListener:
         if intent and self.processor:
             await self.hub.publish("gesture", {"name": gesture})
             await self.processor.execute_intent(intent, source="gesture")
+
+    async def _publish_frame(self, gesture: str, landmarks) -> None:
+        now = time.time()
+        if now - self._last_frame_event_at < 0.1:
+            return
+        self._last_frame_event_at = now
+        points = [{"x": self._clip(point.x), "y": self._clip(point.y)} for point in landmarks]
+        xs = [point["x"] for point in points]
+        ys = [point["y"] for point in points]
+        padding = 0.04
+        bbox = {
+            "x": self._clip(min(xs) - padding),
+            "y": self._clip(min(ys) - padding),
+            "width": self._clip(max(xs) - min(xs) + padding * 2),
+            "height": self._clip(max(ys) - min(ys) + padding * 2),
+        }
+        await self.hub.publish("gesture_frame", {"name": gesture, "bbox": bbox, "landmarks": points})
+
+    async def _publish_empty_frame(self) -> None:
+        now = time.time()
+        if now - self._last_frame_event_at < 0.5:
+            return
+        self._last_frame_event_at = now
+        await self.hub.publish("gesture_frame", {"name": "none", "bbox": None, "landmarks": []})
+
+    @staticmethod
+    def _clip(value: float) -> float:
+        return round(max(0.0, min(1.0, float(value))), 4)
 
     @staticmethod
     def _classify(landmarks) -> str | None:
