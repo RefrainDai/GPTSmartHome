@@ -43,7 +43,27 @@ LLM_ENABLED=true
 LLM_API_KEY=your_api_key
 LLM_BASE_URL=https://your-provider.example/v1
 LLM_MODEL=your-model-name
+LLM_AUTH_HEADER=authorization
 ```
+
+如果使用 `xiaomiTokenPlan` 的 OpenAI 兼容协议，可以配置为：
+
+```env
+LLM_ENABLED=true
+LLM_API_KEY=你的_tp_xxxxx_TokenPlan_Key
+LLM_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
+LLM_AUTH_HEADER=api-key
+LLM_MODEL=mimo-v2-flash
+```
+
+Token Plan 官方文档还列出新加坡和欧洲集群：
+
+```env
+LLM_BASE_URL=https://token-plan-sgp.xiaomimimo.com/v1
+LLM_BASE_URL=https://token-plan-ams.xiaomimimo.com/v1
+```
+
+注意：Token Plan 的 Key 通常是 `tp-xxxxx`，按量付费 Key 通常是 `sk-xxxxx`，两者不能混用。模型名请以控制台显示为准；官方文档列出的常见聊天模型包括 `mimo-v2-flash`、`mimo-v2.5`、`mimo-v2.5-pro`。
 
 不要把 `.env` 提交到 Git。
 

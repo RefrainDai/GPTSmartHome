@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = "https://api.openai.com/v1"
     llm_model: str = "gpt-4o-mini"
+    llm_auth_header: str = "authorization"
+    llm_max_completion_tokens: int = 512
 
     tts_enabled: bool = True
     tts_provider: str = "edge"

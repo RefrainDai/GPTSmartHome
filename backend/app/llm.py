@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from openai import AsyncOpenAI
+import httpx
 
 from .schemas import Intent
 from .settings import Settings
@@ -19,26 +19,36 @@ JSON 格式: {"device_id": string|null, "action": string, "params": object, "con
 class LLMIntentParser:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.client: AsyncOpenAI | None = None
-        if settings.llm_enabled and settings.llm_api_key:
-            self.client = AsyncOpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
 
     async def parse(self, text: str) -> Intent | None:
-        if not self.client:
+        if not self.settings.llm_enabled or not self.settings.llm_api_key:
             return None
         try:
-            response = await self.client.chat.completions.create(
-                model=self.settings.llm_model,
-                messages=[
+            payload: dict[str, Any] = {
+                "model": self.settings.llm_model,
+                "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": text},
                 ],
-                temperature=0.1,
-                response_format={"type": "json_object"},
-                timeout=12,
-            )
-            content = response.choices[0].message.content or "{}"
+                "temperature": 0.1,
+                "response_format": {"type": "json_object"},
+                "max_completion_tokens": self.settings.llm_max_completion_tokens,
+            }
+            headers = self._headers()
+            async with httpx.AsyncClient(timeout=12) as client:
+                response = await client.post(self._chat_completions_url(), headers=headers, json=payload)
+                response.raise_for_status()
+            content = response.json()["choices"][0]["message"].get("content") or "{}"
             data: dict[str, Any] = json.loads(content)
             return Intent(**data)
         except Exception:
             return None
+
+    def _headers(self) -> dict[str, str]:
+        header = self.settings.llm_auth_header.strip().lower()
+        if header == "api-key":
+            return {"api-key": self.settings.llm_api_key, "Content-Type": "application/json"}
+        return {"Authorization": f"Bearer {self.settings.llm_api_key}", "Content-Type": "application/json"}
+
+    def _chat_completions_url(self) -> str:
+        return f"{self.settings.llm_base_url.rstrip('/')}/chat/completions"
