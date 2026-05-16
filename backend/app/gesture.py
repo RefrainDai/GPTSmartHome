@@ -64,7 +64,7 @@ class GestureListener:
             return
 
         cap = self._open_camera(cv2, self.settings.gesture_camera_index)
-        if not cap.isOpened():
+        if cap is None or not cap.isOpened():
             self._running = False
             await self.hub.publish("gesture_status", {"running": False, "state": "error"})
             await self.hub.log("error", "摄像头不可用，手势识别无法启动", "gesture")
@@ -107,13 +107,24 @@ class GestureListener:
             hands.close()
 
     def _open_camera(self, cv2, index: int):
-        backends = [None, getattr(cv2, "CAP_DSHOW", None), getattr(cv2, "CAP_MSMF", None)]
-        for backend in backends:
+        backends = [("dshow", getattr(cv2, "CAP_DSHOW", None)), ("msmf", getattr(cv2, "CAP_MSMF", None)), ("default", None)]
+        for name, backend in backends:
+            if backend is None and name != "default":
+                continue
             cap = cv2.VideoCapture(index) if backend is None else cv2.VideoCapture(index, backend)
-            if cap.isOpened():
-                return cap
+            if not cap.isOpened():
+                cap.release()
+                continue
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.settings.gesture_frame_width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.settings.gesture_frame_height)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            for _ in range(3):
+                ok, frame = cap.read()
+                if ok and frame is not None:
+                    return cap
+                time.sleep(0.05)
             cap.release()
-        return cv2.VideoCapture(index)
+        return None
 
     def _prepare_frame(self, cv2, frame):
         size = (self.settings.gesture_frame_width, self.settings.gesture_frame_height)

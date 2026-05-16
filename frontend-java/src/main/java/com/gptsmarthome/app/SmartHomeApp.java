@@ -53,10 +53,12 @@ import javafx.util.Duration;
 
 public class SmartHomeApp extends Application {
     private static final String BACKEND_URL = System.getProperty("backend.url", "http://127.0.0.1:8000");
-    private static final double INPUT_PREVIEW_WIDTH = 340;
-    private static final double GESTURE_PREVIEW_HEIGHT = 190;
-    private static final double WAVEFORM_HEIGHT = 72;
-    private static final double VOLUME_BAR_WIDTH = 230;
+    private static final double INPUT_PREVIEW_WIDTH = 480;
+    private static final double GESTURE_PREVIEW_HEIGHT = 270;
+    private static final double WAVEFORM_HEIGHT = 64;
+    private static final double VOLUME_BAR_WIDTH = 300;
+    private static final double DEVICE_PANEL_WIDTH = 270;
+    private static final double CONTROL_PANEL_WIDTH = 520;
     private static final int[][] HAND_CONNECTIONS = {
             {0, 1}, {1, 2}, {2, 3}, {3, 4},
             {0, 5}, {5, 6}, {6, 7}, {7, 8},
@@ -104,16 +106,16 @@ public class SmartHomeApp extends Application {
     @Override
     public void start(Stage stage) {
         BorderPane root = new BorderPane();
-        root.setPadding(new Insets(24));
+        root.setPadding(new Insets(20));
         root.setTop(buildHeader());
         root.setCenter(buildMainContent());
         root.setRight(buildSidePanel());
 
-        Scene scene = new Scene(root, 1360, 860);
+        Scene scene = new Scene(root, 1500, 900);
         scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
         stage.setScene(scene);
         stage.setTitle("GPTSmartHome 可视化智能语音交互控制系统");
-        stage.setMinWidth(1160);
+        stage.setMinWidth(1280);
         stage.setMinHeight(760);
         stage.show();
 
@@ -153,20 +155,24 @@ public class SmartHomeApp extends Application {
         houseWrap.setPadding(new Insets(18));
 
         deviceGrid = new GridPane();
-        deviceGrid.setHgap(12);
-        deviceGrid.setVgap(12);
+        deviceGrid.setHgap(0);
+        deviceGrid.setVgap(8);
+        deviceGrid.setMaxWidth(Double.MAX_VALUE);
         ScrollPane cardsScroll = new ScrollPane(deviceGrid);
         cardsScroll.setFitToWidth(true);
+        cardsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         cardsScroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
         VBox cardsPanel = panel("虚拟设备", cardsScroll);
-        cardsPanel.setPrefWidth(390);
+        cardsPanel.setPrefWidth(DEVICE_PANEL_WIDTH);
+        cardsPanel.setMinWidth(DEVICE_PANEL_WIDTH);
+        cardsPanel.setMaxWidth(DEVICE_PANEL_WIDTH);
 
-        HBox main = new HBox(18, houseWrap, cardsPanel);
+        HBox main = new HBox(14, houseWrap, cardsPanel);
         HBox.setHgrow(houseWrap, Priority.ALWAYS);
         return main;
     }
 
-    private VBox buildSidePanel() {
+    private ScrollPane buildSidePanel() {
         TextField commandField = new TextField();
         commandField.setPromptText("输入指令，例如：打开客厅灯 / 进入观影模式");
         Button sendButton = button("发送指令", true);
@@ -209,7 +215,7 @@ public class SmartHomeApp extends Application {
         logArea.getStyleClass().add("log-area");
         logArea.setEditable(false);
         logArea.setWrapText(true);
-        logArea.setPrefHeight(240);
+        logArea.setPrefHeight(170);
 
         VBox panel = panel("交互控制台",
                 commandField,
@@ -221,9 +227,17 @@ public class SmartHomeApp extends Application {
                 voicePanel,
                 gesturePanel,
                 logArea);
-        panel.setPrefWidth(400);
-        BorderPane.setMargin(panel, new Insets(0, 0, 0, 18));
-        return panel;
+        panel.setPrefWidth(CONTROL_PANEL_WIDTH - 24);
+
+        ScrollPane scroll = new ScrollPane(panel);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setPrefWidth(CONTROL_PANEL_WIDTH);
+        scroll.setMaxWidth(CONTROL_PANEL_WIDTH);
+        scroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        BorderPane.setMargin(scroll, new Insets(0, 0, 0, 16));
+        return scroll;
     }
 
     private VBox buildVoicePanel() {
@@ -392,7 +406,7 @@ public class SmartHomeApp extends Application {
         chart.setLegendVisible(false);
         chart.setAnimated(false);
         chart.setCreateSymbols(false);
-        chart.setPrefHeight(180);
+        chart.setPrefHeight(130);
         spectrumSeries = new XYChart.Series<>();
         for (int i = 0; i < 64; i++) {
             spectrumSeries.getData().add(new XYChart.Data<>(i, 0));
@@ -453,7 +467,7 @@ public class SmartHomeApp extends Application {
                     updateHouse();
                 });
             } catch (Exception ex) {
-                Platform.runLater(() -> appendLog("后端设备列表获取失败：" + ex.getMessage()));
+                Platform.runLater(() -> appendLog("后端设备列表获取失败：" + readableError(ex)));
             }
         });
         thread.setDaemon(true);
@@ -466,8 +480,9 @@ public class SmartHomeApp extends Application {
         cardMeta.clear();
         int index = 0;
         for (DeviceState device : devices.values()) {
-            VBox card = new VBox(8);
+            VBox card = new VBox(6);
             card.getStyleClass().add("device-card");
+            card.setMaxWidth(Double.MAX_VALUE);
             Label name = new Label(device.name);
             name.getStyleClass().add("device-name");
             Label meta = new Label(device.room + " · " + device.summary());
@@ -476,7 +491,8 @@ public class SmartHomeApp extends Application {
             card.setOnMouseClicked(event -> backend.postDeviceAction(device.id, "toggle"));
             cards.put(device.id, card);
             cardMeta.put(device.id, meta);
-            deviceGrid.add(card, index % 2, index / 2);
+            deviceGrid.add(card, 0, index);
+            GridPane.setHgrow(card, Priority.ALWAYS);
             index++;
         }
         refreshCards();
@@ -852,6 +868,14 @@ public class SmartHomeApp extends Application {
         }
         String time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
         logArea.appendText("[" + time + "] " + message + System.lineSeparator());
+    }
+
+    private String readableError(Exception ex) {
+        String message = ex.getMessage();
+        if (message == null || message.isBlank()) {
+            return ex.getClass().getSimpleName();
+        }
+        return message;
     }
 
     public static void main(String[] args) {

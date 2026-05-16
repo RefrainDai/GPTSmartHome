@@ -42,6 +42,9 @@ public class BackendClient {
                 .timeout(Duration.ofSeconds(4))
                 .build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 400) {
+            throw new IOException("HTTP " + response.statusCode() + "：" + response.body());
+        }
         JsonNode devices = mapper.readTree(response.body()).path("devices");
         List<DeviceState> result = new ArrayList<>();
         for (JsonNode node : devices) {
@@ -84,7 +87,7 @@ public class BackendClient {
                     notifyStatus("设备诊断结果：" + response.body());
                 })
                 .exceptionally(ex -> {
-                    notifyStatus("设备诊断请求失败：" + ex.getMessage());
+                    notifyStatus(describeFailure("/api/system/diagnostics", ex));
                     return null;
                 });
     }
@@ -104,12 +107,12 @@ public class BackendClient {
 
             @Override
             public void onClose(int code, String reason, boolean remote) {
-                listener.onStatus("WebSocket 已断开：" + reason);
+                listener.onStatus("WebSocket 已断开：" + (reason == null || reason.isBlank() ? "无原因" : reason));
             }
 
             @Override
             public void onError(Exception ex) {
-                listener.onStatus("WebSocket 错误：" + ex.getMessage());
+                listener.onStatus(describeFailure("/ws", ex));
             }
         };
         socket.connect();
@@ -139,13 +142,36 @@ public class BackendClient {
         http.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
                 .thenAccept(response -> {
                     if (response.statusCode() >= 400) {
-                        notifyStatus("HTTP " + response.statusCode() + " 请求失败：" + path + "，响应：" + response.body());
+                        notifyStatus("接口 " + path + " 请求失败：HTTP " + response.statusCode() + "，响应：" + response.body());
                     }
                 })
                 .exceptionally(ex -> {
-                    notifyStatus("HTTP 请求失败：" + ex.getMessage());
+                    notifyStatus(describeFailure(path, ex));
                     return null;
                 });
+    }
+
+    private String describeFailure(String path, Throwable ex) {
+        Throwable cause = rootCause(ex);
+        String detail = cause.getMessage();
+        if (detail == null || detail.isBlank()) {
+            detail = cause.getClass().getSimpleName();
+        }
+        if (cause instanceof java.net.ConnectException) {
+            return "接口 " + path + " 请求失败：无法连接后端，请先运行 scripts\\run_backend.ps1；详情：" + detail;
+        }
+        if (cause instanceof java.net.http.HttpTimeoutException) {
+            return "接口 " + path + " 请求超时：后端无响应或设备初始化太慢；详情：" + detail;
+        }
+        return "接口 " + path + " 请求失败：" + detail;
+    }
+
+    private Throwable rootCause(Throwable ex) {
+        Throwable current = ex;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     private void notifyStatus(String message) {

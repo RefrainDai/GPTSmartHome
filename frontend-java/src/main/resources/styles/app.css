@@ -26,10 +26,10 @@
 
 .device-card {
     -fx-background-color: rgba(13, 24, 43, 0.82);
-    -fx-background-radius: 18px;
+    -fx-background-radius: 14px;
     -fx-border-color: rgba(255, 255, 255, 0.10);
-    -fx-border-radius: 18px;
-    -fx-padding: 14px;
+    -fx-border-radius: 14px;
+    -fx-padding: 10px;
     -fx-cursor: hand;
 }
 
@@ -40,13 +40,13 @@
 }
 
 .device-name {
-    -fx-font-size: 15px;
+    -fx-font-size: 13px;
     -fx-font-weight: 700;
     -fx-text-fill: #f7fbff;
 }
 
 .device-meta {
-    -fx-font-size: 11px;
+    -fx-font-size: 10px;
     -fx-text-fill: #a6bdd7;
 }
 

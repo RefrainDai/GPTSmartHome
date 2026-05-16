@@ -16,13 +16,15 @@ def _check_cameras(max_camera_index: int) -> list[dict[str, Any]]:
         return [{"index": None, "ok": False, "error": f"OpenCV 导入失败：{exc}"}]
 
     backends = [
-        ("default", None),
         ("dshow", getattr(cv2, "CAP_DSHOW", None)),
+        ("default", None),
         ("msmf", getattr(cv2, "CAP_MSMF", None)),
     ]
     results: list[dict[str, Any]] = []
     for index in range(max_camera_index + 1):
         for name, backend in backends:
+            if backend is None and name != "default":
+                continue
             cap = cv2.VideoCapture(index) if backend is None else cv2.VideoCapture(index, backend)
             opened = bool(cap.isOpened())
             read = False
@@ -34,6 +36,8 @@ def _check_cameras(max_camera_index: int) -> list[dict[str, Any]]:
             cap.release()
             if opened or read:
                 results.append({"index": index, "backend": name, "opened": opened, "read": bool(read), "shape": shape})
+            if read:
+                break
     return results
 
 
