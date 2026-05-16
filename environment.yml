@@ -12,13 +12,13 @@ dependencies:
       - uvicorn[standard]
       - pydantic-settings
       - python-dotenv
-      - numpy
+      - numpy==1.26.4
       - scipy
       - sounddevice
       - soundfile
       - edge-tts
-      - opencv-python
-      - mediapipe
+      - opencv-contrib-python==4.11.0.86
+      - mediapipe==0.10.21
       - SpeechRecognition
       - openai
       - httpx

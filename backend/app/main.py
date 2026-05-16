@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .commands import CommandProcessor
+from .diagnostics import run_diagnostics
 from .devices import DeviceStateManager
 from .events import EventHub
 from .gesture import GestureListener
@@ -53,6 +54,11 @@ async def health() -> dict:
 @app.get("/api/devices")
 async def list_devices() -> dict:
     return {"devices": [device.model_dump() for device in devices.list_devices()]}
+
+
+@app.get("/api/system/diagnostics")
+async def diagnostics() -> dict:
+    return run_diagnostics()
 
 
 @app.post("/api/devices/{device_id}/action")

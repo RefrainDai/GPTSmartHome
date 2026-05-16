@@ -69,6 +69,26 @@ public class BackendClient {
         postJson(path, mapper.createObjectNode());
     }
 
+    public void getDiagnostics() {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/system/diagnostics"))
+                .version(HttpClient.Version.HTTP_1_1)
+                .timeout(Duration.ofSeconds(8))
+                .GET()
+                .build();
+        http.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                .thenAccept(response -> {
+                    if (response.statusCode() >= 400) {
+                        notifyStatus("设备诊断失败：HTTP " + response.statusCode() + "，响应：" + response.body());
+                        return;
+                    }
+                    notifyStatus("设备诊断结果：" + response.body());
+                })
+                .exceptionally(ex -> {
+                    notifyStatus("设备诊断请求失败：" + ex.getMessage());
+                    return null;
+                });
+    }
+
     public void connect(EventListener listener) {
         this.listener = listener;
         socket = new WebSocketClient(URI.create(wsUrl)) {

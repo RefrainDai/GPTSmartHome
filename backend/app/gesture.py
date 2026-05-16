@@ -35,6 +35,7 @@ class GestureListener:
             raise RuntimeError("Gesture processor not bound")
         self._running = True
         self._task = asyncio.create_task(self._loop())
+        await self.hub.publish("gesture_status", {"running": True, "state": "starting"})
         await self.hub.log("info", "手势识别已启动", "gesture")
 
     async def stop(self) -> None:
@@ -45,15 +46,27 @@ class GestureListener:
                 await self._task
             except asyncio.CancelledError:
                 pass
+            except Exception as exc:
+                await self.hub.log("error", f"手势任务停止时发现异常：{exc}", "gesture")
+        await self.hub.publish("gesture_status", {"running": False, "state": "stopped"})
         await self.hub.log("info", "手势识别已停止", "gesture")
 
     async def _loop(self) -> None:
         import cv2
         import mediapipe as mp
 
-        cap = cv2.VideoCapture(self.settings.gesture_camera_index)
+        try:
+            hands_factory = mp.solutions.hands.Hands
+        except AttributeError as exc:
+            self._running = False
+            await self.hub.publish("gesture_status", {"running": False, "state": "error"})
+            await self.hub.log("error", f"MediaPipe Hands API 不可用，请安装 mediapipe==0.10.21：{exc}", "gesture")
+            return
+
+        cap = self._open_camera(cv2, self.settings.gesture_camera_index)
         if not cap.isOpened():
             self._running = False
+            await self.hub.publish("gesture_status", {"running": False, "state": "error"})
             await self.hub.log("error", "摄像头不可用，手势识别无法启动", "gesture")
             return
         cv2.setUseOptimized(True)
@@ -65,7 +78,8 @@ class GestureListener:
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.settings.gesture_frame_width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.settings.gesture_frame_height)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        hands = mp.solutions.hands.Hands(max_num_hands=1, min_detection_confidence=0.65, min_tracking_confidence=0.55)
+        hands = hands_factory(max_num_hands=1, min_detection_confidence=0.65, min_tracking_confidence=0.55)
+        await self.hub.publish("gesture_status", {"running": True, "state": "running"})
         try:
             while self._running:
                 started_at = time.time()
@@ -88,8 +102,18 @@ class GestureListener:
                 elapsed = time.time() - started_at
                 await asyncio.sleep(max(0.0, self.settings.gesture_process_interval_seconds - elapsed))
         finally:
+            self._running = False
             cap.release()
             hands.close()
+
+    def _open_camera(self, cv2, index: int):
+        backends = [None, getattr(cv2, "CAP_DSHOW", None), getattr(cv2, "CAP_MSMF", None)]
+        for backend in backends:
+            cap = cv2.VideoCapture(index) if backend is None else cv2.VideoCapture(index, backend)
+            if cap.isOpened():
+                return cap
+            cap.release()
+        return cv2.VideoCapture(index)
 
     def _prepare_frame(self, cv2, frame):
         size = (self.settings.gesture_frame_width, self.settings.gesture_frame_height)

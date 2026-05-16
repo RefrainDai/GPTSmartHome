@@ -163,6 +163,16 @@ scripts\run_frontend.cmd
 
 不要在 `scripts` 目录里直接粘贴 `mvn -f frontend-java/pom.xml ...`，因为这个相对路径是按项目根目录计算的。脚本本身已经会自动定位项目根目录。
 
+## 设备诊断
+
+如果摄像头或麦克风没有反应，先点击前端的 `检测设备`，或直接访问：
+
+```text
+http://127.0.0.1:8000/api/system/diagnostics
+```
+
+诊断会列出可打开的摄像头索引、麦克风输入设备、OpenCV 版本和 MediaPipe 版本。手势识别依赖 `mediapipe==0.10.21`，这个版本包含 `mp.solutions.hands`。
+
 ## 演示指令
 
 可以在 JavaFX 输入框中输入：

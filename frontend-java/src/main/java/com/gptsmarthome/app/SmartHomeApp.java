@@ -188,9 +188,11 @@ public class SmartHomeApp extends Application {
         startGesture.setOnAction(event -> backend.postSimple("/api/gesture/start"));
         Button stopGesture = button("停止手势", false);
         stopGesture.setOnAction(event -> backend.postSimple("/api/gesture/stop"));
+        Button diagnostics = button("检测设备", false);
+        diagnostics.setOnAction(event -> backend.getDiagnostics());
 
         HBox voiceControls = new HBox(10, startVoice, stopVoice);
-        HBox gestureControls = new HBox(10, startGesture, stopGesture);
+        HBox gestureControls = new HBox(10, startGesture, stopGesture, diagnostics);
 
         HBox scenes = new HBox(10,
                 sceneButton("回家", "我回来了"),
@@ -534,6 +536,7 @@ public class SmartHomeApp extends Application {
                 }
                 case "voice_status" -> updateVoiceStatus(payload);
                 case "voice_frame" -> updateVoiceFrame(payload);
+                case "gesture_status" -> updateGestureStatus(payload);
                 case "spectrum" -> updateSpectrum(payload.path("values"));
                 case "gesture_frame" -> updateGestureFrame(payload);
                 case "voice_text" -> appendLog("识别文本：" + payload.path("text").asText());
@@ -606,6 +609,22 @@ public class SmartHomeApp extends Application {
             dot.setStroke(Color.web("#ecfeff"));
             dot.setStrokeWidth(0.8);
             gestureCanvas.getChildren().add(dot);
+        }
+    }
+
+    private void updateGestureStatus(JsonNode payload) {
+        boolean running = payload.path("running").asBoolean(false);
+        String state = payload.path("state").asText("stopped");
+        if (!running && "error".equals(state)) {
+            gestureStatusLabel.setText("当前手势：摄像头/模型启动失败");
+            return;
+        }
+        if (!running) {
+            gestureStatusLabel.setText("当前手势：未启动");
+            return;
+        }
+        if ("starting".equals(state)) {
+            gestureStatusLabel.setText("当前手势：正在打开摄像头");
         }
     }
 
