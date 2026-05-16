@@ -19,7 +19,13 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.AmbientLight;
+import javafx.scene.DepthTest;
+import javafx.scene.Group;
+import javafx.scene.PerspectiveCamera;
 import javafx.scene.Scene;
+import javafx.scene.SceneAntialiasing;
+import javafx.scene.SubScene;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
@@ -42,12 +48,18 @@ import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.PhongMaterial;
 import javafx.scene.shape.Arc;
+import javafx.scene.shape.Box;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.Cylinder;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.Shape3D;
+import javafx.scene.shape.Sphere;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.transform.Rotate;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
@@ -102,6 +114,19 @@ public class SmartHomeApp extends Application {
     private RotateTransition fanSpin;
     private Line fanBladeA;
     private Line fanBladeB;
+    private Sphere livingLight3d;
+    private Sphere bedroomLight3d;
+    private Sphere livingLightBeam3d;
+    private Sphere bedroomLightBeam3d;
+    private Box curtain3d;
+    private Box tvScreen3d;
+    private Box ac3d;
+    private Box doorLock3d;
+    private Cylinder humidifier3d;
+    private Group humidifierSteam3d;
+    private Cylinder robot3d;
+    private Group fan3d;
+    private RotateTransition fanSpin3d;
 
     @Override
     public void start(Stage stage) {
@@ -293,79 +318,163 @@ public class SmartHomeApp extends Application {
     }
 
     private Pane buildHousePane() {
-        Pane pane = new Pane();
-        pane.setPrefSize(520, 690);
+        StackPane pane = new StackPane();
+        pane.setPrefSize(560, 690);
+        pane.setMinSize(480, 640);
 
-        Rectangle living = room(28, 36, 455, 330);
-        Rectangle bedroom = room(28, 392, 220, 240);
-        Rectangle entry = room(272, 392, 210, 240);
+        Group world = new Group();
+        world.setDepthTest(DepthTest.ENABLE);
+        build3dHome(world);
 
-        livingLightGlow = glowRect(58, 66, 170, 90, Color.web("#fde68a", 0.22));
-        bedroomLightGlow = glowRect(58, 425, 135, 72, Color.web("#f0abfc", 0.18));
-        curtainShape = new Rectangle(285, 54, 170, 24);
-        curtainShape.setArcWidth(18);
-        curtainShape.setArcHeight(18);
-        curtainShape.setFill(Color.web("#38bdf8", 0.65));
+        SubScene scene3d = new SubScene(world, 560, 690, true, SceneAntialiasing.BALANCED);
+        scene3d.widthProperty().bind(pane.widthProperty());
+        scene3d.heightProperty().bind(pane.heightProperty());
+        scene3d.setFill(Color.TRANSPARENT);
+        PerspectiveCamera camera = new PerspectiveCamera(true);
+        camera.setNearClip(0.1);
+        camera.setFarClip(2400);
+        camera.setFieldOfView(38);
+        camera.setTranslateY(-230);
+        camera.setTranslateZ(-780);
+        camera.getTransforms().add(new Rotate(-22, Rotate.X_AXIS));
+        scene3d.setCamera(camera);
 
-        tvScreen = new StackPane();
-        tvScreen.setLayoutX(298);
-        tvScreen.setLayoutY(126);
-        tvScreen.setPrefSize(145, 82);
-        Rectangle tvFrame = new Rectangle(145, 82, Color.web("#020617"));
-        tvFrame.setArcWidth(12);
-        tvFrame.setArcHeight(12);
-        tvFrame.setStroke(Color.web("#60a5fa"));
-        tvFrame.setStrokeWidth(2);
-        tvStandby = new Rectangle(132, 68, Color.web("#050814"));
-        tvStandby.setArcWidth(10);
-        tvStandby.setArcHeight(10);
-        Label standby = new Label("TV");
-        standby.setTextFill(Color.web("#64748b"));
-        standby.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
-        tvScreen.getChildren().addAll(tvFrame, tvStandby, standby);
+        VBox legend = new VBox(5,
+                sceneTag("3D 虚拟户型 · Direct3D GPU 渲染"),
+                sceneTag("客厅 / 卧室 / 玄关：灯光、窗帘、电视、空调、风扇、加湿器、门锁、扫地机器人"));
+        legend.setMouseTransparent(true);
+        legend.setPadding(new Insets(14));
+        legend.setStyle("-fx-background-color: rgba(2, 6, 23, 0.42); -fx-background-radius: 16px;");
+        StackPane.setAlignment(legend, Pos.TOP_LEFT);
 
-        acGlow = new Circle(92, 220, 22, Color.web("#22d3ee", 0.16));
-        Rectangle ac = new Rectangle(58, 206, 70, 28);
-        ac.setArcWidth(14);
-        ac.setArcHeight(14);
-        ac.setFill(Color.web("#dbeafe"));
-
-        fanBladeA = new Line(380, 272, 430, 272);
-        fanBladeB = new Line(405, 247, 405, 297);
-        fanBladeA.setStroke(Color.web("#c7d2fe"));
-        fanBladeA.setStrokeWidth(5);
-        fanBladeB.setStroke(Color.web("#c7d2fe"));
-        fanBladeB.setStrokeWidth(5);
-        Circle fanHub = new Circle(405, 272, 10, Color.web("#67e8f9"));
-        Pane fanGroup = new Pane(fanBladeA, fanBladeB, fanHub);
-        fanSpin = new RotateTransition(Duration.seconds(1.1), fanGroup);
-        fanSpin.setByAngle(360);
-        fanSpin.setCycleCount(Animation.INDEFINITE);
-
-        humidifierGlow = new Circle(182, 555, 26, Color.web("#a7f3d0", 0.14));
-        Rectangle humidifier = new Rectangle(155, 535, 54, 60);
-        humidifier.setArcWidth(18);
-        humidifier.setArcHeight(18);
-        humidifier.setFill(Color.web("#9ca3af", 0.75));
-
-        lockArc = new Arc(373, 470, 24, 24, 0, 180);
-        lockArc.setFill(Color.TRANSPARENT);
-        lockArc.setStroke(Color.web("#22c55e"));
-        lockArc.setStrokeWidth(5);
-        Rectangle lockBody = new Rectangle(344, 470, 58, 48);
-        lockBody.setArcWidth(12);
-        lockBody.setArcHeight(12);
-        lockBody.setFill(Color.web("#1e293b"));
-        lockBody.setStroke(Color.web("#22c55e"));
-
-        robotShape = new Circle(375, 578, 29, Color.web("#94a3b8"));
-        robotShape.setStroke(Color.web("#e2e8f0"));
-        robotShape.setStrokeWidth(2);
-
-        pane.getChildren().addAll(living, bedroom, entry, livingLightGlow, bedroomLightGlow, curtainShape, tvScreen,
-                acGlow, ac, fanGroup, humidifierGlow, humidifier, lockArc, lockBody, robotShape);
-        pane.getChildren().addAll(roomLabel(46, 50, "客厅"), roomLabel(46, 406, "卧室"), roomLabel(290, 406, "玄关 / 设备区"));
+        pane.getChildren().addAll(scene3d, legend);
         return pane;
+    }
+
+    private void build3dHome(Group world) {
+        PhongMaterial floor = material("#172033");
+        PhongMaterial wall = material("#20304a");
+        PhongMaterial wallAccent = material("#26405d");
+        PhongMaterial trim = material("#38bdf8");
+        PhongMaterial device = material("#94a3b8");
+
+        AmbientLight ambient = new AmbientLight(Color.web("#7289a8"));
+        world.getChildren().add(ambient);
+        world.getChildren().add(box(680, 12, 520, 0, 158, 40, floor));
+        world.getChildren().add(box(680, 260, 12, 0, 25, 300, wall));
+        world.getChildren().add(box(12, 260, 520, -340, 25, 40, wall));
+        world.getChildren().add(box(12, 260, 520, 340, 25, 40, wall));
+        world.getChildren().add(box(420, 8, 8, -110, 154, 30, trim));
+        world.getChildren().add(box(8, 12, 500, 40, 154, 38, wallAccent));
+        world.getChildren().add(box(260, 8, 8, 190, 154, -90, trim));
+
+        livingLightBeam3d = sphere(90, -180, -34, 180, material("#fde68a"));
+        livingLightBeam3d.setOpacity(0.12);
+        livingLight3d = sphere(20, -180, -118, 180, material("#475569"));
+        bedroomLightBeam3d = sphere(72, 175, -34, 180, material("#f0abfc"));
+        bedroomLightBeam3d.setOpacity(0.10);
+        bedroomLight3d = sphere(18, 175, -118, 180, material("#475569"));
+
+        tvScreen3d = box(138, 82, 8, -235, -18, 292, material("#020617"));
+        Box tvFrame3d = box(154, 96, 12, -235, -18, 298, material("#0f172a"));
+        ac3d = box(112, 34, 22, -84, -92, 286, material("#cbd5e1"));
+        curtain3d = box(152, 44, 10, 135, -64, 292, material("#38bdf8"));
+
+        fan3d = buildFan3d();
+        fan3d.setTranslateX(-28);
+        fan3d.setTranslateY(22);
+        fan3d.setTranslateZ(286);
+        fanSpin3d = new RotateTransition(Duration.seconds(0.75), fan3d);
+        fanSpin3d.setAxis(Rotate.Z_AXIS);
+        fanSpin3d.setByAngle(360);
+        fanSpin3d.setCycleCount(Animation.INDEFINITE);
+
+        humidifier3d = cylinder(24, 70, 150, 116, 25, device);
+        humidifierSteam3d = new Group(
+                sphere(10, 140, 58, 25, material("#a7f3d0")),
+                sphere(8, 158, 42, 20, material("#a7f3d0")),
+                sphere(7, 136, 30, 15, material("#a7f3d0")));
+        humidifierSteam3d.setOpacity(0.34);
+        humidifierSteam3d.setVisible(false);
+
+        Box door = box(92, 158, 10, 260, 80, -212, material("#1e293b"));
+        doorLock3d = box(18, 28, 16, 230, 82, -220, material("#22c55e"));
+        robot3d = cylinder(36, 16, 72, 148, -118, material("#94a3b8"));
+
+        world.getChildren().addAll(livingLightBeam3d, livingLight3d, bedroomLightBeam3d, bedroomLight3d,
+                tvFrame3d, tvScreen3d, ac3d, curtain3d, fan3d, humidifier3d, humidifierSteam3d, door,
+                doorLock3d, robot3d);
+        add3dLabels(world);
+    }
+
+    private Group buildFan3d() {
+        Group group = new Group();
+        PhongMaterial blade = material("#c7d2fe");
+        Box bladeA = box(104, 8, 5, 0, 0, 0, blade);
+        Box bladeB = box(8, 104, 5, 0, 0, 0, blade);
+        Cylinder hub = cylinder(11, 12, 0, 0, -1, material("#67e8f9"));
+        hub.setRotationAxis(Rotate.X_AXIS);
+        hub.setRotate(90);
+        group.getChildren().addAll(bladeA, bladeB, hub);
+        return group;
+    }
+
+    private void add3dLabels(Group world) {
+        world.getChildren().addAll(
+                roomPillar("客厅", -260, 132, 0),
+                roomPillar("卧室", 170, 132, 10),
+                roomPillar("玄关", 230, 132, -150));
+    }
+
+    private Group roomPillar(String name, double x, double y, double z) {
+        Group group = new Group();
+        Cylinder marker = cylinder(8, 42, x, y, z, material("#22d3ee"));
+        Label label = new Label(name);
+        label.setTextFill(Color.web("#e0f2fe"));
+        label.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 12));
+        label.setTranslateX(x - 22);
+        label.setTranslateY(y - 58);
+        label.setTranslateZ(z - 8);
+        group.getChildren().addAll(marker, label);
+        return group;
+    }
+
+    private Label sceneTag(String text) {
+        Label label = new Label(text);
+        label.setTextFill(Color.web("#dff6ff"));
+        label.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 12));
+        return label;
+    }
+
+    private Box box(double width, double height, double depth, double x, double y, double z, PhongMaterial material) {
+        Box box = new Box(width, height, depth);
+        place3d(box, x, y, z, material);
+        return box;
+    }
+
+    private Cylinder cylinder(double radius, double height, double x, double y, double z, PhongMaterial material) {
+        Cylinder cylinder = new Cylinder(radius, height);
+        place3d(cylinder, x, y, z, material);
+        return cylinder;
+    }
+
+    private Sphere sphere(double radius, double x, double y, double z, PhongMaterial material) {
+        Sphere sphere = new Sphere(radius);
+        place3d(sphere, x, y, z, material);
+        return sphere;
+    }
+
+    private void place3d(Shape3D shape, double x, double y, double z, PhongMaterial material) {
+        shape.setTranslateX(x);
+        shape.setTranslateY(y);
+        shape.setTranslateZ(z);
+        shape.setMaterial(material);
+    }
+
+    private PhongMaterial material(String color) {
+        PhongMaterial material = new PhongMaterial(Color.web(color));
+        material.setSpecularColor(Color.web("#e0f2fe", 0.28));
+        return material;
     }
 
     private Rectangle room(double x, double y, double w, double h) {
@@ -787,26 +896,58 @@ public class SmartHomeApp extends Application {
         DeviceState lock = devices.get("door_lock");
         DeviceState robot = devices.get("robot_vacuum");
 
-        fade(livingLightGlow, living != null && living.is_on ? 0.95 : 0.12);
-        fade(bedroomLightGlow, bedroom != null && bedroom.is_on ? 0.82 : 0.10);
-        curtainShape.setWidth(curtain != null && curtain.is_on ? 42 : 170);
-        acGlow.setOpacity(ac != null && ac.is_on ? 0.85 : 0.12);
-        humidifierGlow.setOpacity(humidifier != null && humidifier.is_on ? 0.85 : 0.12);
-        robotShape.setFill(robot != null && robot.is_on ? Color.web("#22d3ee") : Color.web("#94a3b8"));
-        lockArc.setStroke(lock != null && Boolean.TRUE.equals(lock.locked) ? Color.web("#22c55e") : Color.web("#f97316"));
+        updateLamp3d(livingLight3d, livingLightBeam3d, living != null && living.is_on, "#fde68a");
+        updateLamp3d(bedroomLight3d, bedroomLightBeam3d, bedroom != null && bedroom.is_on, "#f0abfc");
+
+        boolean curtainOpen = curtain != null && curtain.is_on;
+        curtain3d.setWidth(curtainOpen ? 42 : 152);
+        curtain3d.setTranslateX(curtainOpen ? 188 : 135);
+        set3dMaterial(curtain3d, curtainOpen ? "#7dd3fc" : "#38bdf8");
+
+        boolean acOn = ac != null && ac.is_on;
+        set3dMaterial(ac3d, acOn ? "#22d3ee" : "#cbd5e1");
+        ac3d.setTranslateZ(acOn ? 280 : 286);
+
+        boolean humidifierOn = humidifier != null && humidifier.is_on;
+        set3dMaterial(humidifier3d, humidifierOn ? "#6ee7b7" : "#94a3b8");
+        humidifierSteam3d.setVisible(humidifierOn);
+
+        boolean robotOn = robot != null && robot.is_on;
+        set3dMaterial(robot3d, robotOn ? "#22d3ee" : "#94a3b8");
+        robot3d.setTranslateX(robotOn ? 118 : 72);
+
+        boolean locked = lock == null || Boolean.TRUE.equals(lock.locked);
+        set3dMaterial(doorLock3d, locked ? "#22c55e" : "#f97316");
 
         if (fan != null && fan.is_on) {
-            if (fanSpin.getStatus() != Animation.Status.RUNNING) {
-                fanSpin.play();
+            set3dMaterial((Shape3D) fan3d.getChildren().get(2), "#67e8f9");
+            if (fanSpin3d.getStatus() != Animation.Status.RUNNING) {
+                fanSpin3d.play();
             }
         } else {
-            fanSpin.stop();
+            set3dMaterial((Shape3D) fan3d.getChildren().get(2), "#64748b");
+            fanSpin3d.stop();
         }
 
         if (tv != null && tv.is_on) {
             playTvVideo();
         } else {
             stopTvVideo();
+        }
+    }
+
+    private void updateLamp3d(Sphere bulb, Sphere beam, boolean on, String color) {
+        if (bulb == null || beam == null) {
+            return;
+        }
+        set3dMaterial(bulb, on ? color : "#475569");
+        set3dMaterial(beam, color);
+        fade(beam, on ? 0.42 : 0.10);
+    }
+
+    private void set3dMaterial(Shape3D shape, String color) {
+        if (shape != null) {
+            shape.setMaterial(material(color));
         }
     }
 
@@ -817,32 +958,40 @@ public class SmartHomeApp extends Application {
     }
 
     private void playTvVideo() {
+        set3dMaterial(tvScreen3d, "#0ea5e9");
         if (tvPlayer != null && tvPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
             return;
         }
         MediaConfig.VideoEntry video = soundManager.tvVideoConfig();
         if (video == null || video.on == null) {
-            tvStandby.setFill(Color.web("#0ea5e9", 0.45));
+            if (tvStandby != null) {
+                tvStandby.setFill(Color.web("#0ea5e9", 0.45));
+            }
             return;
         }
         Path path = soundManager.videoPath(video.on);
         if (!Files.exists(path)) {
-            tvStandby.setFill(Color.web("#0ea5e9", 0.45));
+            if (tvStandby != null) {
+                tvStandby.setFill(Color.web("#0ea5e9", 0.45));
+            }
             appendLog("电视视频不存在，可自行放置：" + path);
             return;
         }
         try {
             stopTvVideo();
+            set3dMaterial(tvScreen3d, "#0ea5e9");
             tvPlayer = new MediaPlayer(new Media(path.toUri().toString()));
             tvPlayer.setVolume(video.volume);
             if (video.loop) {
                 tvPlayer.setCycleCount(MediaPlayer.INDEFINITE);
             }
-            tvView = new MediaView(tvPlayer);
-            tvView.setFitWidth(132);
-            tvView.setFitHeight(68);
-            tvView.setPreserveRatio(false);
-            tvScreen.getChildren().add(tvView);
+            if (tvScreen != null) {
+                tvView = new MediaView(tvPlayer);
+                tvView.setFitWidth(132);
+                tvView.setFitHeight(68);
+                tvView.setPreserveRatio(false);
+                tvScreen.getChildren().add(tvView);
+            }
             tvPlayer.play();
         } catch (Exception ex) {
             appendLog("电视视频播放失败：" + ex.getMessage());
@@ -855,11 +1004,14 @@ public class SmartHomeApp extends Application {
             tvPlayer.dispose();
             tvPlayer = null;
         }
-        if (tvView != null) {
+        if (tvView != null && tvScreen != null) {
             tvScreen.getChildren().remove(tvView);
             tvView = null;
         }
-        tvStandby.setFill(Color.web("#050814"));
+        if (tvStandby != null) {
+            tvStandby.setFill(Color.web("#050814"));
+        }
+        set3dMaterial(tvScreen3d, "#020617");
     }
 
     private void appendLog(String message) {
